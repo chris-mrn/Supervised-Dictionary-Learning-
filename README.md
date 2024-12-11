@@ -1,2 +1,2 @@
-# Supervised-Dictionary-Learning-
+# Supervised Dictionary Learning 
 Time Series MVA-2024
