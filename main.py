@@ -1,6 +1,6 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-from functions import fixed_point_continuation, gradient_f
+from Models.utils import fixed_point_continuation, gradient_f
 
 p=5 #nbr of classes
 k=256 #dimension of the dictionary
