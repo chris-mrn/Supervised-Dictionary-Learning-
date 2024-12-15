@@ -1,134 +1,127 @@
 import numpy as np
+from sklearn.base import BaseEstimator, ClassifierMixin
+from scipy.optimize import minimize
+from joblib import Parallel, delayed
 
 
-class SDL:
-    def __init__(self, dict_size, lambda_0=1e-4, lambda_1=1e-4, lambda_2=1e-4, max_iter=1000, eps=1e-4, gtol=0.2):
+class SupervisedDictionaryLearning(BaseEstimator, ClassifierMixin):
+    def __init__(self, n_components=10, lambda0=0.1, lambda1=0.1, lambda2=0.1, max_iter=100, tol=1e-4, n_jobs=-1):
         """
-        Initializes the Supervised Dictionary Learning (SDL) model.
-
         Parameters:
-        - dict_size: int, size of the dictionary
-        - lambda_0: float, regularization parameter for the smooth part
-        - lambda_1: float, regularization parameter for the sparsity constraint
-        - lambda_2: float, additional regularization term (if needed)
-        - max_iter: int, maximum number of iterations for optimization
-        - eps: float, tolerance for convergence
-        - gtol: float, tolerance for gradient norm convergence
+        - n_components: int, size of the dictionary (k)
+        - lambda0, lambda1, lambda2: float, regularization parameters
+        - max_iter: int, maximum number of iterations
+        - tol: float, convergence tolerance
+        - n_jobs: int, number of parallel jobs to run for sparse coding (default is -1 for all CPUs)
         """
-        self.dict_size = dict_size
-        self.lambda_0 = lambda_0
-        self.lambda_1 = lambda_1
-        self.lambda_2 = lambda_2
+        self.n_components = n_components
+        self.lambda0 = lambda0
+        self.lambda1 = lambda1
+        self.lambda2 = lambda2
         self.max_iter = max_iter
-        self.eps = eps
-        self.gtol = gtol
+        self.tol = tol
+        self.n_jobs = n_jobs
 
-    def fit(self, signals, alpha_init=None):
-        """
-        Fit the dictionary and coefficients to the provided signals.
 
-        Parameters:
-        - signals: ndarray, shape (n_classes, s_per_class, len_s)
-        - alpha_init: ndarray, initial alpha coefficients (optional)
+    def _initialize(self, X):
+        n_features = X.shape[1]
+        self.D_ = np.random.randn(n_features, self.n_components)
+        self.D_ /= np.linalg.norm(self.D_, axis=0)  # Normalize columns
+        self.theta_ = np.zeros(self.n_components + 1)  # For linear model (w, b)
 
-        Returns:
-        - self: the fitted SDL model
-        """
-        len_s = signals.shape[2]
-        s_per_class = signals.shape[1]
-        n_classes = signals.shape[0]
+    def _sparse_coding(self, X):
+        """Solve supervised sparse coding for each sample in parallel."""
+        m = X.shape[0]
+        # Parallelize the computation of alpha for each sample
+        alpha_neg = Parallel(n_jobs=self.n_jobs)(delayed(self._solve_alpha)(X[i], -1) for i in range(m))
+        alpha_pos = Parallel(n_jobs=self.n_jobs)(delayed(self._solve_alpha)(X[i], 1) for i in range(m))
+        return np.array(alpha_neg), np.array(alpha_pos)
 
-        # Initialize dictionary, weights, and biases
-        self.D = np.random.randn(len_s, self.dict_size)
-        self.W = np.random.randn(self.dict_size, n_classes)
-        self.b = np.random.randn(n_classes)
+    def _solve_alpha(self, xi, label):
+        """Solve the sparse coding problem for a single sample."""
+        def objective(alpha):
+            reconstruction_error = np.linalg.norm(xi - self.D_ @ alpha)**2
+            sparsity_penalty = self.lambda1 * np.linalg.norm(alpha, 1)
+            classification_loss = np.log(1 + np.exp(-label * (self.theta_[:-1] @ alpha + self.theta_[-1])))
+            return classification_loss + self.lambda0 * reconstruction_error + sparsity_penalty
 
-        if alpha_init is None:
-            self.alpha = np.zeros((n_classes, s_per_class, self.D.shape[1]))
-        else:
-            self.alpha = alpha_init
+        result = minimize(objective, np.zeros(self.n_components), method='L-BFGS-B')
+        return result.x
 
-        for iter in range(self.max_iter):
-            # Optimization step for alpha
-            self.alpha = self._supervised_sparse_coding(signals)
+    def _update_dictionary_and_params(self, X, y, alpha_neg, alpha_pos, lr_D=0.01, lr_theta=0.01):
+        """Update D and theta using provided gradients."""
+        m = X.shape[0]
+        self.list_mu = 0*np.linspace(0, 1, m)
+        grad_D = np.zeros_like(self.D_)
+        grad_theta_w = np.zeros(self.n_components)
+        grad_theta_b = 0
 
-            # TODO: Implement optimization steps for D, W, and b (based on the original paper)
+        for i in range(m):
+            xi = X[i]
+            yi = y[i]
 
-            if iter % 10 == 0:
-                print(f"Iteration {iter}/{self.max_iter}")
+            # Compute omega
+            S_neg = self._compute_S(alpha_neg[i], xi, yi, -1)
+            S_pos = self._compute_S(alpha_pos[i], xi, yi, +1)
+            omega_neg = - self.list_mu[i] * (-1) * self._nabla_C(S_neg - S_pos) + (1 - self.list_mu[i]) * int(yi == -1)
+            omega_pos = -self.list_mu[i] * (+1) * self._nabla_C(S_neg - S_pos) + (1 - self.list_mu[i]) * int(yi == +1)
+
+            # Update gradients for D
+            grad_D += omega_neg * np.outer((xi - self.D_ @ alpha_neg[i]), alpha_neg[i])
+            grad_D += omega_pos * np.outer((xi - self.D_ @ alpha_pos[i]), alpha_pos[i])
+
+            # Update gradients for theta (w and b)
+            pred_neg = self.theta_[:-1] @ alpha_neg[i] + self.theta_[-1]
+            pred_pos = self.theta_[:-1] @ alpha_pos[i] + self.theta_[-1]
+            grad_theta_w += omega_neg * (-1) * self._nabla_C(pred_neg) * alpha_neg[i]
+            grad_theta_w += omega_pos * (+1) * self._nabla_C(pred_pos) * alpha_pos[i]
+            grad_theta_b += omega_neg * (-1) * self._nabla_C(pred_neg)
+            grad_theta_b += omega_pos * (+1) * self._nabla_C(pred_pos)
+
+        grad_D *= - 2 * self.lambda0
+        # Gradient updates
+        self.D_ -= lr_D * grad_D  # Learning rate for D
+        self.D_ /= np.linalg.norm(self.D_, axis=0)  # Re-normalize columns
+        self.theta_[:-1] -= lr_theta * grad_theta_w  # Learning rate for w
+        self.theta_[-1] -= lr_theta * grad_theta_b  # Learning rate for b
+
+    def _compute_S(self, alpha, xi, yi, label):
+        """Compute the loss S for a given alpha."""
+        reconstruction_error = np.linalg.norm(xi - self.D_ @ alpha)**2
+        sparsity_penalty = self.lambda1 * np.linalg.norm(alpha, 1)
+        classification_loss = np.log(1 + np.exp(-label * (self.theta_[:-1] @ alpha + self.theta_[-1])))
+        return classification_loss + self.lambda0 * reconstruction_error + sparsity_penalty
+
+    def _nabla_C(self, x):
+        """Gradient of the logistic loss."""
+        return -1 / (1 + np.exp(x))
+
+    def fit(self, X, y):
+        """Fit the model to the data."""
+        self._initialize(X)
+        for iteration in range(self.max_iter):
+            alpha_neg, alpha_pos = self._sparse_coding(X)
+            self._update_dictionary_and_params(X, y, alpha_neg, alpha_pos)
+
+            # Log progress
+            current_loss = np.mean([self._compute_S(alpha_neg[i], X[i], y[i], -1) +
+                                    self._compute_S(alpha_pos[i], X[i], y[i], +1) for i in range(len(y))])
+            print(f"Iteration {iteration + 1}/{self.max_iter}, Loss: {current_loss:.4f}")
+
+            # Check convergence
+            if iteration > 0 and np.linalg.norm(alpha_neg - alpha_pos) < self.tol:
+                print("Convergence reached.")
+                break
 
         return self
 
-    def _soft_thresholding(self, z, threshold):
-        """Applies the soft-thresholding operator."""
-        return np.sign(z) * np.maximum(np.abs(z) - threshold, 0)
+    def predict(self, X):
+        """Predict class labels for samples in X."""
+        alpha_list = np.array([self._solve_alpha(xi, 1) for xi in X])  # Assume yi=1 for prediction
+        scores = alpha_list @ self.theta_[:-1] + self.theta_[-1]
+        return np.sign(scores)
 
-    def _gradient_f(self, alpha, W, b, l, D, x):
-        """Compute the gradient of the linear function."""
-        grad_l2 = -2 * self.lambda_0 * D.T @ (x - D @ alpha)
-
-        diff_W = np.zeros(W.shape)
-        diff_b = np.zeros(b.shape)
-        for i in range(W.shape[1]):
-            diff_W[:,i] = W[:,i] - W[:,l]
-            diff_b[i] = b[i] - b[l]
-        exp_terms = np.exp((diff_W).T @ alpha + diff_b)
-        softmax_weights = exp_terms / np.sum(exp_terms)
-        grad_logsumexp = diff_W @ softmax_weights
-
-        return grad_logsumexp + grad_l2
-
-    def _fixed_point_continuation(self, alpha, W, b, l, D, x):
-        """
-        Fixed Point Continuation (FPC) Algorithm.
-
-        Solves: min_alpha f(alpha) + lambda * ||alpha||_1
-        """
-        mu_i = 0.99 * np.linalg.norm(alpha, ord=np.inf)
-        list_alpha = []
-
-        for iteration in range(self.max_iter):
-            mu = min(mu_i * 4**(iteration - 1), 1 / self.lambda_1)
-            tau = 1.999
-            grad_f = self._gradient_f(alpha, W, b, l, D, x)
-            alpha_temp = alpha - tau * grad_f
-
-            v = tau * self.lambda_1
-            alpha_next = self._soft_thresholding(alpha_temp, v)
-
-            # Check for convergence
-            if (np.linalg.norm(alpha_next - alpha, ord=2) / max(np.linalg.norm(alpha), 1) < self.eps) and \
-               (mu * np.linalg.norm(grad_f, ord=np.inf) - 1 < self.gtol):
-                print(f"Converged in {iteration + 1} iterations.")
-                break
-
-            alpha = alpha_next
-            list_alpha.append(alpha)
-
-        return alpha, list_alpha
-
-    def _supervised_sparse_coding(self, signals):
-        """
-        Compute the supervised sparse coding for the dictionary learning algorithm.
-        """
-        s_per_class = signals.shape[1]
-        n_classes = signals.shape[0]
-        alpha_opt = np.zeros((n_classes, s_per_class, self.D.shape[1]))
-
-        for l in range(n_classes):
-            for j in range(s_per_class):
-                alpha_opt[l, j, :] = self._fixed_point_continuation(self.alpha, self.W, self.b, l, self.D, signals[l, j, :])[0]
-
-        return alpha_opt
-
-    def transform(self, signals):
-        """
-        Predict the sparse coefficients for new signals using the learned dictionary.
-
-        Parameters:
-        - signals: ndarray, shape (n_classes, s_per_class, len_s)
-
-        Returns:
-        - alpha_opt: ndarray, sparse coefficients for the signals
-        """
-        return self._supervised_sparse_coding(signals)
+    def score(self, X, y):
+        """Return the classification accuracy."""
+        y_pred = self.predict(X)
+        return np.mean(y_pred == y)

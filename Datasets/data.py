@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
 
 
 class SyntheticTimeSeriesDataset:
@@ -45,17 +44,7 @@ class SyntheticTimeSeriesDataset:
             data.append(class_data)
             labels.append(class_labels)
         self.data, self.labels = np.vstack(data), np.hstack(labels)
-
-    def save_to_csv(self, filename="synthetic_time_series.csv"):
-        if self.data is None or self.labels is None:
-            raise ValueError("Dataset has not been created. "
-                             "Call create_dataset() first.")
-        df = pd.DataFrame(
-            self.data,
-            columns=[f"t{i}" for i in range(self.sequence_length)]
-        )
-        df["label"] = self.labels
-        df.to_csv(filename, index=False)
+        return self.data, self.labels  # Explicitly return X and y
 
     def plot_examples(self):
         if self.data is None or self.labels is None:
