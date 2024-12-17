@@ -1,24 +1,23 @@
 import numpy as np
 import scipy
 
+# In the case of binary classification
 
-#In the case of binary classification
 
 def function_S(alpha, x, D, w, b, lambda_0, lambda_1, pos=True, method="linear"):
     if method == "linear":
-        if pos: 
+        if pos:
             logistic_loss = np.log(1 + np.exp(-(w.T @ alpha + b)))
         else:
             logistic_loss = np.log(1 + np.exp(w.T @ alpha + b))
     else:
         print("Method not implemented")
         return np.nan
-    
+
     reg_1 = lambda_0 * np.linalg.norm(x - D @ alpha, ord=2)**2
     reg_2 = lambda_1 * np.linalg.norm(alpha, ord=1)
 
     return logistic_loss + reg_1 + reg_2
-
 
 
 def supervised_sparse_coding(alpha, signals, D, w, b):
@@ -50,13 +49,14 @@ def supervised_sparse_coding(alpha, signals, D, w, b):
 
     return alpha_opt_neg, alpha_opt_pos
 
+
 def compute_gradients(D, w, b, signals, alpha, lambda_0, mu):
     """Compute gradients of E with respect to D, w, and b."""
     # Initialize gradients
     grad_D = np.zeros_like(D)
     grad_w = np.zeros_like(w)
     grad_b = 0.0
-        
+
     # Iterate over data samples
     for i in range(len(signals)):
         for z in [-1, +1]:
@@ -108,7 +108,7 @@ def projected_gradient_descent(D, w, b, signals, alpha, lambda_0, mu, grad_steps
     for step in range(grad_steps):
         # Compute gradients
         grad_D, grad_w, grad_b = compute_gradients(D, w, b, signals, alpha, lambda_0, mu)
-        
+
         # Update parameters
         D -= step_size * grad_D
         w -= step_size * grad_w
