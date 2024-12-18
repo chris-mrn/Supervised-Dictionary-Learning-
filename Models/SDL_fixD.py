@@ -1,84 +1,118 @@
 from sklearn.metrics import accuracy_score
+from alphacsc import BatchCDL
+from alphacsc.init_dict import init_dictionary
+from sklearn.linear_model import Ridge
 
 
 class SDL_fixD:
     """
     Fix the dictionary to a wavelet basis and
-    only learn the linear model theta and b.
+    only learn the linear model theta and b for binary classification.
 
-    The model proceeds by computing the coefficient of the wavelet basis
+    The model computes the coefficients of the wavelet basis
     for each signal and then learns the linear model theta and b.
     """
 
-    def __init__(self, wavelet_dictionary, regularization_param=None):
+    def __init__(self, n_atoms, n_times_atom, n_iter=3, regularization_param=None, max_iter=1000):
         """
         Initialize the model with a fixed wavelet dictionary and optional regularization parameter.
 
         Args:
-            wavelet_dictionary: The dictionary of wavelet basis functions.
+            n_atoms: Number of atoms in the dictionary.
+            n_times_atom: The size of the time window for each atom.
             regularization_param: Regularization parameter for the linear model (optional).
         """
-        self.wavelet_dictionary = wavelet_dictionary
+        self.n_atoms = n_atoms
+        self.n_times_atom = n_times_atom
         self.regularization_param = regularization_param
         self.theta = None  # Linear model parameter (weights)
         self.b = None  # Linear model parameter (bias)
+        self.D = None  # Dictionary of wavelet basis
+        self.alpha = None  # Coefficients for each signal
+        self.max_iter = 1000
+        self.n_iter = n_iter
 
-    def compute_wavelet_coefficients(self, signal):
+    def CDL_model(self, X):
         """
-        Compute the wavelet coefficients for the given signal.
+        Computes the coefficients and dictionary using BatchCDL.
 
         Args:
-            signal: The input signal to transform.
-
-        Returns:
-            The wavelet coefficients corresponding to the signal.
-        """
-        # Code for computing the wavelet coefficients for the signal
-        pass
-
-    def learn_linear_model(self, X, y):
-        """
-        Learn the linear model parameters theta and b using the wavelet coefficients.
-
-        Args:
-            X: The matrix of wavelet coefficients.
-            y: The target values corresponding to the signals.
+            X: The input signal matrix.
 
         Returns:
             None
         """
-        # Code for solving the linear model (e.g., linear regression with regularization)
-        pass
+        D_init = init_dictionary(
+            X,
+            n_atoms=self.n_atoms,
+            n_times_atom=self.n_times_atom,
+            rank1=False,
+            window=True,
+            D_init='chunk',
+            random_state=60)
 
-    def fit(self, signals, targets):
+        cdl = BatchCDL(
+            n_atoms=self.n_atoms,
+            n_times_atom=self.n_times_atom,
+            rank1=False,
+            uv_constraint='auto',
+            n_iter=self.n_iter,
+            n_jobs=6,
+            solver_z='lgcd',
+            solver_z_kwargs={'tol': 1e-2, 'max_iter': self.max_iter},
+            window=True,
+            D_init=D_init,
+            solver_d='fista',
+            random_state=0)
+
+        # Compute coefficients and dictionary
+        cdl.fit(X)
+        self.alpha = cdl._z_hat  # Coefficients for each signal
+        self.D = cdl.D_hat_  # Learned dictionary
+
+    def fit(self, X, y):
         """
         Fit the model by first computing the wavelet coefficients and then learning the linear model.
 
         Args:
-            signals: The set of input signals.
-            targets: The target values corresponding to the signals.
+            X: The input signal matrix.
+            y: The binary target values corresponding to the signals (0 or 1).
 
         Returns:
             None
         """
         # Step 1: Compute wavelet coefficients for each signal
-        wavelet_coefficients = [self.compute_wavelet_coefficients(signal) for signal in signals]
+        self.CDL_model(X)
 
         # Step 2: Learn the linear model (theta and b) using the coefficients
-        self.learn_linear_model(wavelet_coefficients, targets)
+        model = Ridge(alpha=self.regularization_param)
+        # if dim of alpha is more than 2, then reshape it to 2D
+
+        self.alpha = self.alpha.reshape(self.alpha.shape[0], -1)
+        model.fit(self.alpha, y)  # Fit a linear model to the wavelet coefficients
+        self.theta = model.coef_  # Linear model parameters (weights)
+        self.b = model.intercept_  # Linear model bias
 
     def predict(self, X):
         """
-        Predict using the learned linear model.
+        Predict using the learned linear model and classify the output for binary classification.
 
         Args:
-            X: The matrix of wavelet coefficients (input features).
+            X: The input signal matrix (shape [n_samples, n_features]).
 
         Returns:
-            Predicted values based on the linear model.
+            Predicted binary labels (0 or 1) based on the linear model.
         """
-        # Code for making predictions using the learned linear model (theta, b)
-        pass
+        # Compute coefficients for the new data using the learned dictionary
+        self.CDL_model(X)
+        self.alpha = self.alpha.reshape(self.alpha.shape[0], -1)
+
+        # Predict based on the learned linear model (theta, b)
+        y_pred_continuous = self.alpha.dot(self.theta.T) + self.b
+
+        # Apply threshold to classify as binary (0 or 1)
+        y_pred = (y_pred_continuous > 0.5).astype(int)
+        return y_pred
 
     def get_parameters(self):
         """
@@ -94,15 +128,12 @@ class SDL_fixD:
         Compute the classification accuracy of the model on the given data.
 
         Args:
-            X: The input features (wavelet coefficients).
-            y: The true target values.
+            X: The input features (signal matrix).
+            y: The true binary target values (0 or 1).
 
         Returns:
             Accuracy score.
         """
-        # Get predictions for the input data
         y_pred = self.predict(X)
-
-        # Compute the accuracy score by comparing predicted and true labels
         accuracy = accuracy_score(y, y_pred)
         return accuracy

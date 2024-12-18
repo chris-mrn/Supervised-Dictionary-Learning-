@@ -9,7 +9,9 @@ from braindecode.preprocessing import (
 from braindecode.preprocessing import create_windows_from_events
 from sklearn.model_selection import train_test_split
 import numpy as np
-
+from Datasets.data import BNCI_Dataset
+from Datasets.data import SyntheticTimeSeriesDataset
+from Datasets.data import SyntheticEEGDataset
 
 # Utility functions to preprocess the dataset
 
@@ -120,25 +122,34 @@ def windows_data(
     return windows_dataset, sfreq
 
 
+def load_dataset(name):
+    """
+    Load the appropriate dataset based on the name provided.
 
-def load_dataset():
-    # loading the dataset
-    dataset = MOABBDataset(dataset_name="BNCI2014001", subject_ids=None)
+    Parameters:
+    -----------
+    name: str
+        Name of the dataset to load.
 
-    dataset, sfreq = windows_data(dataset, 'LeftRightImagery')
-
-    subject = 1
-    data_split_subject = dataset.split('subject')
-    evaluation_process = 'intra_subject'
-    dataset = data_split_subject[str(subject)]
-
-
-    X = SliceDataset(dataset, idx=0)
-    y = np.array(list(SliceDataset(dataset, idx=1)))-1
-    # we have to susbtract 1 to the labels for compatibility reasons
-    # with the deep learning solvers
-
-    # maybe we need to do here different process for each subjects
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y)
-    return np.array(X_train), np.array(y_train), np.array(X_test), np.array(y_test), sfreq
+    Returns:
+    --------
+    X: np.array
+        Features of the dataset.
+    y: np.array
+        Labels of the dataset.
+    """
+    if name == "synthetic":
+        dataset = SyntheticTimeSeriesDataset(
+            num_classes=2, num_samples_per_class=100, sequence_length=100
+        )
+        return dataset.create_dataset()
+    elif name == "synthetic_eeg":
+        dataset = SyntheticEEGDataset(
+            num_classes=2, num_samples_per_class=100, num_electrodes=22)
+        return dataset.create_dataset()
+    elif name == "bnci":
+        bnci_data = BNCI_Dataset(subject_ids=[1], paradigm_name='LeftRightImagery')
+        X, y = bnci_data.get_X_y()
+        return X, y
+    else:
+        raise ValueError(f"Unknown dataset: {name}")

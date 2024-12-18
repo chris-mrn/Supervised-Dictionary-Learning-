@@ -64,6 +64,63 @@ class SyntheticTimeSeriesDataset:
         plt.show()
 
 
+class SyntheticEEGDataset:
+    def __init__(self, num_classes=3, num_samples_per_class=100,
+                 sequence_length=100, num_electrodes=32, noise_level=0.1,
+                 random_seed=None):
+        self.num_classes = num_classes
+        self.num_samples_per_class = num_samples_per_class
+        self.sequence_length = sequence_length
+        self.num_electrodes = num_electrodes
+        self.noise_level = noise_level
+        self.random_seed = random_seed
+        self.data = None
+        self.labels = None
+        if random_seed:
+            np.random.seed(random_seed)
+
+    def generate_class_data(self, class_id):
+        np.random.seed(class_id + (self.random_seed if self.random_seed else 0))
+        data, labels = [], []
+        time = np.linspace(0, 2 * np.pi, self.sequence_length)
+
+        for _ in range(self.num_samples_per_class):
+            # Create empty data for all electrodes (n_electrodes x sequence_length)
+            signal_matrix = np.zeros((self.num_electrodes, self.sequence_length))
+
+            for electrode in range(self.num_electrodes):
+                if class_id == 0:
+                    signal = np.sin((class_id + 1) * time) + self.noise_level * np.random.randn(self.sequence_length)
+                elif class_id == 1:
+                    signal = np.cos((class_id + 1) * time) + self.noise_level * np.random.randn(self.sequence_length)
+                elif class_id == 2:
+                    signal = np.sin((class_id + 1) * time) * np.exp(-0.05 * time) + self.noise_level * np.random.randn(self.sequence_length)
+                elif class_id == 3:
+                    signal = np.sin((class_id + 1) * time) + np.cos((class_id + 2) * time) + self.noise_level * np.random.randn(self.sequence_length)
+                else:
+                    signal = np.sin((class_id + 1) * time) * np.exp(-0.01 * time) + self.noise_level * np.random.randn(self.sequence_length)
+
+                # Assign the signal to the corresponding electrode
+                signal_matrix[electrode] = signal
+
+            # Append the generated signal matrix for the current sample
+            data.append(signal_matrix)
+            labels.append(class_id)
+        return np.array(data), np.array(labels)
+
+    def create_dataset(self):
+        self.data = []
+        self.labels = []
+        for class_id in range(self.num_classes):
+            class_data, class_labels = self.generate_class_data(class_id)
+            self.data.append(class_data)
+            self.labels.append(class_labels)
+
+        self.data = np.vstack(self.data)
+        self.labels = np.hstack(self.labels)
+        return self.data, self.labels
+
+
 class BNCI_Dataset:
     def __init__(self, subject_ids=[1], paradigm_name='LeftRightImagery',
                  low_cut_hz=4.0, high_cut_hz=38.0, factor=1e6,
