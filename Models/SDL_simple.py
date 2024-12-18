@@ -116,3 +116,44 @@ class SDL:
         """Computes classification accuracy."""
         y_pred = self.predict(X)
         return np.mean(np.round(y_pred) == y)
+
+class SDL_fixD:
+    """
+    Fix the dictionary to a wavelet basis and
+    only learn the linear model theta and b.
+
+    The model proceed by computing the coefficient of the wavelet basis
+    for each signal and then learn the linear model theta and b.
+    """
+
+    def __init__(self, n_iter=1000,
+                 lambda1=0.01,
+                 lambda2=0.01,
+                 lr_theta=0.01,
+                 lr_alpha=0.01):
+        self.n_iter = n_iter
+        self.lambda1 = lambda1
+        self.lambda2 = lambda2
+        self.lr_theta = lr_theta
+        self.lr_alpha = lr_alpha
+
+    def objective(self, X, y, theta, alpha):
+        """Computes the objective function value."""
+        objective = 0
+        for i in range(X.shape[0]):
+            xi, yi, ai = X[i], y[i], alpha[i]
+            loss_class = np.linalg.norm(yi - theta @ ai)**2
+            sparse_penalty = self.lambda1 * np.linalg.norm(ai, 1)
+            objective += loss_class + sparse_penalty
+        return objective
+
+    def solve_alpha(self, X, y, theta):
+        """
+        Optimizes sparse codes `alpha` for fixed `theta`.
+        We can have here a explicit expression of our gradient regarding
+        to alpha, so we can use a gradient descent to optimize it.
+        """
+
+        return np.zeros((X.shape[0], theta.shape[0]))
+
+    def grad_E_theta(y, theta, alpha, b, lambda_2):

@@ -4,7 +4,6 @@ from braindecode.datasets import BNCI2014001
 from braindecode.preprocessing import preprocess, Preprocessor
 from braindecode.preprocessing import create_windows_from_events
 from skorch.helper import SliceDataset
-from numpy import multiply
 
 class SyntheticTimeSeriesDataset:
     def __init__(self, num_classes=3, num_samples_per_class=100,
@@ -137,5 +136,3 @@ class BNCI_Dataset:
         X = SliceDataset(self.dataset, idx=0)
         y = np.array(list(SliceDataset(self.dataset, idx=1))) - 1  # Subtract 1 for compatibility
         return X, y
-
-
