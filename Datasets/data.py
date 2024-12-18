@@ -1,6 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+from braindecode.datasets import BNCI2014001
+from braindecode.preprocessing import preprocess, Preprocessor
+from braindecode.preprocessing import create_windows_from_events
+from skorch.helper import SliceDataset
+from numpy import multiply
 
 class SyntheticTimeSeriesDataset:
     def __init__(self, num_classes=3, num_samples_per_class=100,
@@ -59,3 +63,79 @@ class SyntheticTimeSeriesDataset:
         plt.ylabel("Value")
         plt.legend()
         plt.show()
+
+
+class BNCI_Dataset:
+    def __init__(self, subject_ids=[1], paradigm_name='LeftRightImagery',
+                 low_cut_hz=4.0, high_cut_hz=38.0, factor=1e6,
+                 trial_start_offset_seconds=-0.5, n_jobs=-1):
+        self.subject_ids = subject_ids
+        self.paradigm_name = paradigm_name
+        self.low_cut_hz = low_cut_hz
+        self.high_cut_hz = high_cut_hz
+        self.factor = factor
+        self.trial_start_offset_seconds = trial_start_offset_seconds
+        self.n_jobs = n_jobs
+        self.dataset = None
+        self.sfreq = None
+        self._load_and_preprocess_data()
+
+    def _pre_process_windows_dataset(self, dataset):
+        """
+        Preprocess the window (epoched) dataset.
+        - Pick only EEG channels
+        - Convert from V to uV
+        - Bandpass filter
+        - Apply exponential moving standardization
+        """
+        preprocessors = [
+            Preprocessor("pick_types", eeg=True, meg=False, stim=False),
+            Preprocessor(lambda data, factor: np.multiply(data, factor), factor=self.factor),
+            Preprocessor("filter", l_freq=self.low_cut_hz, h_freq=self.high_cut_hz),
+        ]
+
+        preprocess(dataset, preprocessors, n_jobs=self.n_jobs)
+        return dataset
+
+    def _windows_data(self):
+        """
+        Create windows from the dataset.
+        """
+        # Define mapping of classes to integers
+        if self.paradigm_name == "LeftRightImagery":
+            mapping = {"left_hand": 1, "right_hand": 2}
+        elif self.paradigm_name == "MotorImagery":
+            mapping = {"left_hand": 1, "right_hand": 2, "feet": 4, "tongue": 3}
+
+        self.dataset = self._pre_process_windows_dataset(self.dataset)
+        sfreq = self.dataset.datasets[0].raw.info["sfreq"]
+        assert all([ds.raw.info["sfreq"] == sfreq for ds in self.dataset.datasets])
+        self.sfreq = sfreq
+
+        trial_start_offset_samples = int(self.trial_start_offset_seconds * self.sfreq)
+        windows_dataset = create_windows_from_events(
+            self.dataset,
+            trial_start_offset_samples=trial_start_offset_samples,
+            trial_stop_offset_samples=0,
+            preload=True,
+            mapping=mapping,
+        )
+
+        return windows_dataset
+
+    def _load_and_preprocess_data(self):
+        """
+        Load the BNCI dataset and preprocess it.
+        """
+        self.dataset = BNCI2014001(subject_ids=self.subject_ids)
+        self.dataset = self._windows_data()
+
+    def get_X_y(self):
+        """
+        Return X and y for the dataset.
+        """
+        X = SliceDataset(self.dataset, idx=0)
+        y = np.array(list(SliceDataset(self.dataset, idx=1))) - 1  # Subtract 1 for compatibility
+        return X, y
+
+

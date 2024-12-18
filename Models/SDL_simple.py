@@ -42,7 +42,7 @@ class SDL:
         We can have here a explicit expression of our gradient regarding
         to alpha, so we can use a gradient descent to optimize it.
         """
-        
+
         return np.zeros((X.shape[0], D.shape[1]))
 
     def grad_E_theta(y, D, theta, alpha, b, lambda_2):
