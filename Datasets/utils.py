@@ -13,6 +13,9 @@ from Datasets.data import BNCI_Dataset
 from Datasets.data import SyntheticTimeSeriesDataset
 from Datasets.data import SyntheticEEGDataset
 
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
 # Utility functions to preprocess the dataset
 
 def pre_process_windows_dataset(
@@ -72,19 +75,6 @@ def windows_data(
     n_jobs=-1,
 ):
     """Create windows from the dataset.
-
-    Parameters:
-    -----------
-    dataset: MOABBDataset
-        Dataset to use.
-    paradigm_name: str
-        Name of the paradigm to use.
-    Returns:
-    --------
-    windows_dataset: WindowsDataset
-        Dataset with windows.
-    sfreq: float
-        Sampling frequency of the dataset.
     """
     # Define mapping of classes to integers
     # We use two classes from the dataset
@@ -125,18 +115,6 @@ def windows_data(
 def load_dataset(name):
     """
     Load the appropriate dataset based on the name provided.
-
-    Parameters:
-    -----------
-    name: str
-        Name of the dataset to load.
-
-    Returns:
-    --------
-    X: np.array
-        Features of the dataset.
-    y: np.array
-        Labels of the dataset.
     """
     if name == "synthetic":
         dataset = SyntheticTimeSeriesDataset(
@@ -153,3 +131,14 @@ def load_dataset(name):
         return X, y
     else:
         raise ValueError(f"Unknown dataset: {name}")
+    
+
+def PCA(data, n_componante):
+    data_reduct = np.zeros((data.shape[0], n_componante, data.shape[2]))
+    for i in range(data.shape[0]):
+        standardized_data = StandardScaler().fit_transform(data[i])
+        pca = PCA(n_components=8)
+        X_reduct = pca.fit_transform(standardized_data.T)
+        data_reduct[i] = X_reduct.T
+        
+    return data_reduct
