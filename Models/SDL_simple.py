@@ -1,4 +1,6 @@
 import numpy as np
+from Models.utils import PrimalDualSolver
+from Models.utils import ProjectedGradientDescent
 
 
 class SDL:
@@ -36,54 +38,45 @@ class SDL:
             objective += loss_dict + loss_class + sparse_penalty
         return objective
 
-    def solve_alpha(self, X, y, D, theta):
+    def solve_alpha(self, X, y, D, theta, b):
         """
         Optimizes sparse codes `alpha` for fixed `D` and `theta`.
         We can have here a explicit expression of our gradient regarding
-        to alpha, so we can use a gradient descent to optimize it.
+        to alpha, so we can use a proximal gradient descent to optimize it.
         """
+        n_samples, n_features = X.shape
+        alpha = np.zeros((n_samples, n_features))
 
-        return np.zeros((X.shape[0], D.shape[1]))
+        for i in range(n_samples):
+            x_i = X[i]
+            y_i = y[i]
 
-    def grad_E_theta(y, D, theta, alpha, b, lambda_2):
-        """
-        Compute the gradient of E with respect to theta.
-        """
-        grad = 2 * lambda_2 * theta  # Regularization term
-        for i in range(len(y)):
-            error = np.dot(theta.T, alpha[:, i]) + b - y[i]
-            grad += 2 * alpha[:, i].reshape(-1, 1) * error  # Data fidelity term
-        return grad
+            solver = PrimalDualSolver(
+                theta=theta, b=b, x_i=x_i, y_i=y_i, D=D,
+                lambda_0=self.lamnda0, lambda_1=self.lambda1,
+                lambd=0.01, mu=1.0
+            )
+            # Solve the problem
+            x0 = np.random.randn(n_features)  # Random initialization
+            alpha_opt, _ = solver.solve(x0)
 
-    def grad_E_D(x, D, alpha, lambda_0):
-        """
-        Compute the gradient of E with respect to D.
-        """
-        grad = np.zeros_like(D)  # Initialize gradient matrix
-        for i in range(x.shape[1]):
-            error = x[:, i] - np.dot(D, alpha[:, i])
-            grad -= 2 * lambda_0 * np.outer(error, alpha[:, i])
-        return grad
+            alpha[i] = alpha_opt
 
-    def solve_D_theta(self, alpha_opt, X, y, D_opt, theta_opt):
+        return alpha
+
+    def solve_D_theta(self, alpha_opt, X, y, D_opt, theta_opt, b):
         """
         Updates `D` and `theta` given the optimal `alpha`.
-        Do a projective gradient descent
+        Do a projective gradient descent.
         """
-
-        D_init = D_opt
-        theta_init = theta_opt
-
-        for j in range(self.n_iter):
-            # do the gradient descent for D
-            grad_D = self.grad_E_D(X, D_init, alpha_opt, self.lambda0)
-            D_opt = D_init - self.lr_D * grad_D
-            D_opt /= np.linalg.norm(D_opt, axis=0)
-
-            # do the gradient descent for theta
-            grad_theta = self.grad_E_theta(y, D_opt, theta_init, alpha_opt, self.b, self.lambda2)
-            theta_opt = theta_init - self.lr_theta * grad_theta
-
+        pgd = ProjectedGradientDescent(
+            D_init=D_opt, theta_init=theta_opt,
+            b=b, x=X, y=y, alphas=alpha_opt,
+            lambda_0=self.lamnda0,
+            lambda_1=self.lambda1, lambda_2=self.lambda2,
+            lr=self.lr_D, max_iter=self.n_iter
+        )
+        D_opt, theta_opt, _ = pgd.optimize()
         return D_opt, theta_opt
 
     def fit(self, X, y):
@@ -93,27 +86,27 @@ class SDL:
         D_opt = np.random.randn(n_features, self.n_components)
         D_opt /= np.linalg.norm(D_opt, axis=0)
         theta_opt = np.zeros(self.n_components)
+        b_opt = 0
 
         for _ in range(self.n_iter):
-            alpha_opt = self.solve_alpha(X, y, D_opt, theta_opt)
-            D_opt, theta_opt = self.solve_D_theta(alpha_opt, X, y, D_opt, theta_opt)
+            alpha_opt = self.solve_alpha(X, y, D_opt, theta_opt, b_opt)
+            D_opt, theta_opt, b_opt, _ = self.solve_D_theta(alpha_opt,
+                                                            X,
+                                                            y,
+                                                            D_opt,
+                                                            theta_opt,
+                                                            b_opt)
 
         self.alpha = alpha_opt
         self.D = D_opt
         self.theta = theta_opt[:-1]
         self.b = theta_opt[-1]
 
-    def compute_alpha_from_D(self, x, D):
-        """Computes sparse code `alpha` for a given sample `x`."""
-        return np.zeros(D.shape[1])
-
     def predict(self, X):
         """Predicts labels for input data `X`."""
-        alpha = np.array([self.compute_alpha_from_D(x, self.D) for x in X])
-        return self.theta @ alpha.T + self.b
+        return self.theta @ self.alpha.T + self.b
 
     def score(self, X, y):
         """Computes classification accuracy."""
         y_pred = self.predict(X)
         return np.mean(np.round(y_pred) == y)
-
