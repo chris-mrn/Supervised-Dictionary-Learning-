@@ -8,7 +8,7 @@ from skorch.helper import SliceDataset
 
 class SyntheticTimeSeriesDataset:
     def __init__(self, num_classes=2, num_samples_per_class=100,
-                 sequence_length=100):
+                 sequence_length=40):
         self.num_classes = num_classes
         self.num_samples_per_class = num_samples_per_class
         self.sequence_length = sequence_length
@@ -41,28 +41,66 @@ class SyntheticTimeSeriesDataset:
             labels.append(class_id)
         return np.array(data), np.array(labels)
 
+
+class SyntheticDataset2:
+    def __init__(self, num_classes=2, num_samples=100, num_features=40, num_components=10):
+        self.num_classes = num_classes
+        self.num_samples = num_samples
+        self.num_features = num_features
+        self.num_components = num_components
+        self.X = None
+        self.y = None
+        self.true_D = None
+        self.true_alpha = None
+        self.true_theta = None
+        self.b_true = None
+
+    def generate_class_data(self, class_id):
+        np.random.seed(class_id)
+        X = np.random.randn(self.num_samples, self.num_features)
+        true_D = np.random.randn(self.num_features, self.num_components)
+        true_alpha = np.random.randn(self.num_samples, self.num_components)
+        true_theta = np.random.randn(self.num_components)
+        b_true = 0.5
+        y = X @ true_D @ true_theta + b_true + 0.1 * np.random.randn(self.num_samples)
+        return X, y, true_D, true_alpha, true_theta, b_true
+
     def create_dataset(self):
         data, labels = [], []
+        true_D, true_alpha, true_theta, b_true = None, None, None, None
         for class_id in range(self.num_classes):
-            class_data, class_labels = self.generate_class_data(class_id)
+            class_data, class_labels, class_D, class_alpha, class_theta, class_b = self.generate_class_data(class_id)
             data.append(class_data)
             labels.append(class_labels)
-        self.data, self.labels = np.vstack(data), np.hstack(labels)
-        return self.data, self.labels  # Explicitly return X and y
+            if class_id == 0:  # Assign true values from the first class
+                true_D, true_alpha, true_theta, b_true = class_D, class_alpha, class_theta, class_b
+
+        self.X = np.vstack(data)
+        self.y = np.hstack(labels)
+        self.true_D = true_D
+        self.true_alpha = true_alpha
+        self.true_theta = true_theta
+        self.b_true = b_true
+        return self.X, self.y
+
+    def get_true_values(self):
+        if self.true_D is None or self.true_alpha is None or self.true_theta is None:
+            self.create_dataset()
+        return self.true_D, self.true_alpha, self.true_theta, self.b_true
 
     def plot_examples(self):
-        if self.data is None or self.labels is None:
-            raise ValueError("Dataset has not been created. "
-                             "Call create_dataset() first.")
+        if self.X is None or self.y is None:
+            raise ValueError("Dataset has not been created. Call create_dataset() first.")
         plt.figure(figsize=(10, 6))
         for class_id in range(self.num_classes):
-            idx = class_id * self.num_samples_per_class
-            plt.plot(self.data[idx], label=f"Class {class_id}")
-        plt.title("Example Time Series for Each Class")
-        plt.xlabel("Time Step")
+            idx = class_id * self.num_samples
+            plt.plot(self.X[idx], label=f"Class {class_id}")
+        plt.title("Example Data for Each Class")
+        plt.xlabel("Feature Index")
         plt.ylabel("Value")
         plt.legend()
         plt.show()
+
 
 
 class SyntheticEEGDataset:

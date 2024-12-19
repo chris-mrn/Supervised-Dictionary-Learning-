@@ -277,28 +277,23 @@ class ProjectedGradientDescent_logistic:
 
     @staticmethod
     def logistic_loss(x):
-        """Computes the logistic loss in a numerically stable way."""
-        return np.where(
-            x >= 0,
-            np.log1p(np.exp(-x)),  # Use log1p for numerical stability
-            -x + np.log1p(np.exp(x))  # Equivalent stable computation for large negative x
-        )
+        return np.log(1 + np.exp(-x))
 
     @staticmethod
     def grad_logistic_loss(x):
         return - 1 / (1 + np.exp(x))
 
     def compute_gradient_theta(self, theta, b, y, alphas, lambda_2):
-        grad_theta = 2 * lambda_2 * theta
+        grad_theta = np.zeros_like(theta)
         for i in range(len(y)):
-            x = y[i] * np.dot(theta, alphas[i]) + b
-            grad_theta += self.grad_logistic_loss(x) * y[i] * alphas[i] + 2 * lambda_2 * theta
-        return grad_theta
+            x = y[i] * (np.dot(theta, alphas[i]) + b)
+            grad_theta += self.grad_logistic_loss(x) * y[i] * alphas[i]
+        return grad_theta + 2 * lambda_2 * theta
 
     def compute_gradient_b(self, theta, b, y, alphas):
         grad_b = 0
         for i in range(len(y)):
-            x = y[i] * np.dot(theta, alphas[i]) + b
+            x = y[i] * (np.dot(theta, alphas[i]) + b)
             grad_b += self.grad_logistic_loss(x) * y[i]
         return grad_b
 
@@ -306,8 +301,8 @@ class ProjectedGradientDescent_logistic:
     def compute_gradient_D(D, x, alphas, lambda_0):
         grad_D = np.zeros_like(D)
         for i in range(len(x)):
-            grad_D -= 2 * lambda_0 * np.outer((x[i] - np.dot(D, alphas[i])), alphas[i])
-        return grad_D
+            grad_D +=  (x[i] - np.dot(D, alphas[i])) @ alphas[i].T
+        return - 2 * lambda_0 * grad_D
 
     @staticmethod
     def project_D(D):

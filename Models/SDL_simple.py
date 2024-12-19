@@ -1,6 +1,6 @@
 import numpy as np
-from Models.utils import PrimalDualSolver_l2
-from Models.utils import ProjectedGradientDescent_l2
+import numpy as np
+from Models.utils import PrimalDualSolver_l2, ProjectedGradientDescent_l2
 
 
 class SDL_simple:
@@ -14,11 +14,12 @@ class SDL_simple:
 
     def __init__(self, n_iter=10,
                  lamnda0=0.01,
-                 lambda1=0.01,
-                 lambda2=0.01,
+                 lambda1=0.1,
+                 lambda2=0.1,
                  lr_D=0.01,
                  lr_theta=0.01,
-                 lr_alpha=0.01):
+                 lr_alpha=0.01,
+                 lambd=0.01,):
         self.n_iter = n_iter
         self.lamnda0 = lamnda0
         self.lambda1 = lambda1
@@ -26,24 +27,33 @@ class SDL_simple:
         self.lr_D = lr_D
         self.lr_theta = lr_theta
         self.lr_alpha = lr_alpha
+        self.lambd = lambd
 
     def objective(self, X, y, D, theta, b, alpha):
-        """Computes the objective function value."""
-        objective = 0
+        """Computes the objective function value with separate terms."""
+        total_loss_dict = 0
+        total_loss_class = 0
+        total_sparse_penalty = 0
+
         for i in range(X.shape[0]):
             xi, yi, ai = X[i], y[i], alpha[i]
+
+            # Compute each term
             loss_dict = np.linalg.norm(xi - D @ ai)**2
             loss_class = np.linalg.norm(yi - (theta @ ai + b))**2
             sparse_penalty = self.lambda1 * np.linalg.norm(ai, 1)
-            objective += loss_dict + loss_class + sparse_penalty
-        return objective
+
+            # Accumulate terms
+            total_loss_dict += loss_dict
+            total_loss_class += loss_class
+            total_sparse_penalty += sparse_penalty
+
+        # Combine the terms
+        total_objective = total_loss_dict + total_loss_class + total_sparse_penalty
+        return total_objective
 
     def solve_alpha(self, X, y, D, theta, b):
-        """
-        Optimizes sparse codes `alpha` for fixed `D` and `theta`.
-        We can have here a explicit expression of our gradient regarding
-        to alpha, so we can use a proximal gradient descent to optimize it.
-        """
+        """Optimizes sparse codes `alpha` for fixed `D` and `theta`."""
         n_samples, n_features = X.shape
         alpha = np.zeros((n_samples, n_features))
 
@@ -54,7 +64,7 @@ class SDL_simple:
             solver = PrimalDualSolver_l2(
                 theta=theta, b=b, x_i=x_i, y_i=y_i, D=D,
                 lambda_0=self.lamnda0, lambda_1=self.lambda1,
-                lambd=0.01, mu=1.0
+                lambd=self.lambd, mu=1.0
             )
             # Solve the problem
             x0 = np.random.randn(n_features)  # Random initialization
@@ -65,10 +75,7 @@ class SDL_simple:
         return alpha
 
     def solve_D_theta(self, alpha_opt, X, y, D_opt, theta_opt, b):
-        """
-        Updates `D` and `theta` given the optimal `alpha`.
-        Do a projective gradient descent.
-        """
+        """Updates `D` and `theta` given the optimal `alpha`."""
         pgd = ProjectedGradientDescent_l2(
             D_init=D_opt, theta_init=theta_opt,
             b=b, x=X, y=y, alphas=alpha_opt,
@@ -97,9 +104,14 @@ class SDL_simple:
                                                     D_opt,
                                                     theta_opt,
                                                     b_opt)
-            # Print the loss of after each iteration
+            # Compute the loss
             loss = self.objective(X, y, D_opt, theta_opt, b_opt, alpha_opt)
             print(f"Iteration {i+1}/{self.n_iter}, Loss: {loss}")
+
+            # Stop the model if the loss is NaN
+            if np.isnan(loss):
+                print("Loss is NaN. Stopping optimization.")
+                break
 
         self.alpha = alpha_opt
         self.D = D_opt

@@ -15,8 +15,10 @@ from Datasets.data import SyntheticEEGDataset
 
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from Datasets.data import SyntheticDataset2
 
 # Utility functions to preprocess the dataset
+
 
 def pre_process_windows_dataset(
     dataset, low_cut_hz=4.0, high_cut_hz=38.0, factor=1e6, n_jobs=-1
@@ -110,6 +112,9 @@ def load_dataset(name):
         bnci_data = BNCI_Dataset(subject_ids=[1], paradigm_name='LeftRightImagery')
         X, y = bnci_data.get_X_y()
         return X, y
+    elif name == "synthetic2":
+        dataset = SyntheticDataset2()
+        return dataset.create_dataset()
     else:
         raise ValueError(f"Unknown dataset: {name}")
 
