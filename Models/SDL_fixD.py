@@ -9,13 +9,13 @@ class SDL_fixD:
     Fix the dictionary to a wavelet basis and
     only learn the linear model theta and b for binary classification.
 
-    The model computes the coefficients of the wavelet basis
+    The model computes the coefficients of the sparse coding
     for each signal and then learns the linear model theta and b.
     """
 
     def __init__(self, n_atoms, n_times_atom, n_iter=3, regularization_param=None, max_iter=1000):
         """
-        Initialize the model with a fixed wavelet dictionary and optional regularization parameter.
+        Initialize the model with a chunk of the data as dictionary and optional regularization parameter.
 
         Args:
             n_atoms: Number of atoms in the dictionary.
@@ -27,7 +27,7 @@ class SDL_fixD:
         self.regularization_param = regularization_param
         self.theta = None  # Linear model parameter (weights)
         self.b = None  # Linear model parameter (bias)
-        self.D = None  # Dictionary of wavelet basis
+        self.D = None  # Empty dictionary
         self.alpha = None  # Coefficients for each signal
         self.max_iter = 1000
         self.n_iter = n_iter
@@ -72,7 +72,7 @@ class SDL_fixD:
 
     def fit(self, X, y):
         """
-        Fit the model by first computing the wavelet coefficients and then learning the linear model.
+        Fit the model by first computing the sparse coding coefficients and then learning the linear model.
 
         Args:
             X: The input signal matrix.
@@ -81,7 +81,7 @@ class SDL_fixD:
         Returns:
             None
         """
-        # Step 1: Compute wavelet coefficients for each signal
+        # Step 1: Compute coefficients for each signal
         self.CDL_model(X)
 
         # Step 2: Learn the linear model (theta and b) using the coefficients
@@ -89,7 +89,7 @@ class SDL_fixD:
         # if dim of alpha is more than 2, then reshape it to 2D
 
         self.alpha = self.alpha.reshape(self.alpha.shape[0], -1)
-        model.fit(self.alpha, y)  # Fit a linear model to the wavelet coefficients
+        model.fit(self.alpha, y)  # Fit a linear model
         self.theta = model.coef_  # Linear model parameters (weights)
         self.b = model.intercept_  # Linear model bias
 

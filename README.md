@@ -16,6 +16,8 @@ Before running the script, ensure you have the following installed:
   - `scikit-learn`
   - `numpy`
   - `argparse`
+  - `braindecode`
+  - `moabb`
   - `torch` (if using SDL or other PyTorch-based models)
   
 You can install these dependencies using `pip`:
@@ -36,75 +38,23 @@ pip install -r requirements.txt
 
 You can choose between multiple models to train on the selected dataset:
 
-1. **RandomForestClassifier** (`rf`)
+1. **Convolutional Dictionary Learning (CDL)** (`rf`)
    - A simple and efficient classifier based on decision trees. Suitable for quick baselines.
    
 2. **Supervised Dictionary Learning (SDL)** (`sdl`)
    - A more advanced algorithm suitable for time-series and high-dimensional data. Can be used for feature extraction and classification in a single step.
 
-## How to Run
-
-1. Clone the repository and navigate to the directory:
-
-   ```bash
-   git clone <repository_url>
-   cd <repository_directory>
-   ```
-
-2. Install the required dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Run the script using the `-d` argument to specify the dataset and the `-m` argument to specify the model:
-
-   ```bash
-   python main.py -d <dataset_name> -m <model_name>
-   ```
-
-   Replace `<dataset_name>` with one of the following:
-   - `synthetic` for the synthetic dataset.
-   - `bnci` for the BNCI EEG dataset.
-
-   Replace `<model_name>` with one of the following:
-   - `rf` for RandomForestClassifier.
-   - `sdl` for Supervised Dictionary Learning.
 
 ### Example Commands
+The files are composed of several notebooks that allows to run and test the different models of this project. 
+- Dataset analysis can be done in the EEG_data_analysis.ipynb notebook. 
+- Test_Simple_SDL.ipynb can be used to run the simplified version of the Supervised Dictionary Learning model version
+- Test_Logistic_SDL.ipynb can be used to run the logistic version of the Supervised Dictionary Learning model version
+- Test_CDL.ipynb can be used to run the convolutional dictionary leanring model version
 
-#### Run with the Synthetic Dataset using RandomForest:
-
-```bash
-python main.py -d synthetic -m rf
-```
-
-#### Run with the BNCI Dataset using SDL:
-
-```bash
-python main.py -d bnci -m sdl
-```
-
-#### Run with the BNCI Dataset using RandomForest:
-
-```bash
-python main.py -d bnci -m rf
-```
-
-## Output
-
-After running the script, the model will train on the provided dataset, and the script will output the test set accuracy:
-
-```bash
-Test set accuracy: <accuracy_value>
-```
-
-## Extending the Script
-
-To add more datasets or models, you can extend the following parts of the code:
-
-- **Adding New Datasets**: Modify the `load_dataset` function in `main.py` to include logic for loading and preprocessing the new dataset.
-- **Adding New Models**: Extend the script by adding new model options in the argument parser and initialize them in the model selection section.
+Additional files contain the codes needed to run the different python notebooks. 
+- Projective_gradient_descent and Projective_gradient_descent_logistic where used to test the convergence of the projective gradient descent algorithms
+- Algo_prox and Algo_prox_logistic where used to test the convergence of the proximal algorithm
 
 ## Notes
 
