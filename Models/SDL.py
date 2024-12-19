@@ -84,7 +84,7 @@ class SupervisedDictionaryLearning(BaseEstimator, ClassifierMixin):
 
     def _nabla_C(self, x):
         """Gradient of the cost."""
-        return
+        return 1 / (1 + np.exp(-x))
 
     def fit(self, X, y):
         """Fit the model to the data."""

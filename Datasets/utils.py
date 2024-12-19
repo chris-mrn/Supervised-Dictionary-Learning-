@@ -131,7 +131,7 @@ def load_dataset(name):
         return X, y
     else:
         raise ValueError(f"Unknown dataset: {name}")
-    
+
 
 def PCA(data, n_componante):
     data_reduct = np.zeros((data.shape[0], n_componante, data.shape[2]))
@@ -140,5 +140,5 @@ def PCA(data, n_componante):
         pca = PCA(n_components=8)
         X_reduct = pca.fit_transform(standardized_data.T)
         data_reduct[i] = X_reduct.T
-        
+
     return data_reduct

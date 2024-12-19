@@ -5,8 +5,9 @@ from braindecode.preprocessing import preprocess, Preprocessor
 from braindecode.preprocessing import create_windows_from_events
 from skorch.helper import SliceDataset
 
+
 class SyntheticTimeSeriesDataset:
-    def __init__(self, num_classes=3, num_samples_per_class=100,
+    def __init__(self, num_classes=2, num_samples_per_class=100,
                  sequence_length=100):
         self.num_classes = num_classes
         self.num_samples_per_class = num_samples_per_class
@@ -65,7 +66,7 @@ class SyntheticTimeSeriesDataset:
 
 
 class SyntheticEEGDataset:
-    def __init__(self, num_classes=3, num_samples_per_class=100,
+    def __init__(self, num_classes=2, num_samples_per_class=100,
                  sequence_length=100, num_electrodes=32, noise_level=0.1,
                  random_seed=None):
         self.num_classes = num_classes
