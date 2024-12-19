@@ -38,13 +38,17 @@ pip install -r requirements.txt
 
 You can choose between multiple models to train on the selected dataset:
 
-1. **Convolutional Dictionary Learning (CDL)** (`rf`)
+1. **Baseline Models such**
    - A simple and efficient classifier based on decision trees. Suitable for quick baselines.
-   
-2. **Supervised Dictionary Learning (SDL)** (`sdl`)
+
+2. **Supervised Dictionnare Learning l2**
    - A more advanced algorithm suitable for time-series and high-dimensional data. Can be used for feature extraction and classification in a single step.
-
-
+   - It uses a l2 penality term for classification
+   
+3. **Supervised Dictionnare Learning logictic**
+   - Same but with a logistic penalty for classifcation
+     
+   
 ### Example Commands
 The files are composed of several notebooks that allows to run and test the different models of this project. 
 - Dataset analysis can be done in the EEG_data_analysis.ipynb notebook. 
@@ -53,16 +57,16 @@ The files are composed of several notebooks that allows to run and test the diff
 - Test_CDL.ipynb can be used to run the convolutional dictionary leanring model version
 
 Additional files contain the codes needed to run the different python notebooks. 
-- Projective_gradient_descent and Projective_gradient_descent_logistic where used to test the convergence of the projective gradient descent algorithms
-- Algo_prox and Algo_prox_logistic where used to test the convergence of the proximal algorithm
+- Test_PGD_l2 and Test_PGD_logistic where used to test the convergence of the projective gradient descent algorithms
+- Test_prox_l2 and Test_prox_logistic where used to test the convergence of the proximal algorithm
 
 ## Notes
 
 - Ensure that the `Models` and `Datasets` directories are properly set up and contain the required modules/classes for training and dataset handling.
 - For BNCI datasets, ensure you have access to the raw EEG data files as required by the `BNCI_Dataset` class.
-- If using `SDL`, make sure you have `torch` installed in your environment.
 
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for details.
+
 
