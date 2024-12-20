@@ -106,7 +106,13 @@ class SDL_logistic:
 
     def predict(self, X):
         """Predicts labels for input data `X`."""
-        return self.theta @ self.alpha.T + self.b
+        predictions = []
+        for i in range(X.shape[0]):
+            x_i = X[i]
+            alpha, _, _, _ = np.linalg.lstsq(self.D, x_i, rcond=None)
+            prediction = self.theta @ alpha + self.b
+            predictions.append(prediction)
+        return np.sign(np.array(predictions))
 
     def score(self, X, y):
         """Computes classification accuracy."""
