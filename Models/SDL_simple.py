@@ -1,5 +1,4 @@
 import numpy as np
-import numpy as np
 from Models.utils import PrimalDualSolver_l2, ProjectedGradientDescent_l2
 
 
