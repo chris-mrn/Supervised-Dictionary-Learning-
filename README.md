@@ -65,8 +65,5 @@ Additional files contain the codes needed to run the different python notebooks.
 - Ensure that the `Models` and `Datasets` directories are properly set up and contain the required modules/classes for training and dataset handling.
 - For BNCI datasets, ensure you have access to the raw EEG data files as required by the `BNCI_Dataset` class.
 
-## License
-
-This project is licensed under the MIT License. See the `LICENSE` file for details.
 
 
